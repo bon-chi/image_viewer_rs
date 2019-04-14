@@ -1,0 +1,8 @@
+[package]
+name = "image_viewer_rs"
+version = "0.1.0"
+authors = ["Koji Ota <afterjnih@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+rexiv2 = "0.7.0"
