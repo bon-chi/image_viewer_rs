@@ -1,5 +1,6 @@
 use image_viewer_rs::geo_tag::GeoTag;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use azul::prelude::*;
 
@@ -9,7 +10,26 @@ struct MyDataModel {
 impl Layout for MyDataModel {
     fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
         match self.image_id {
-            Some(i) => Dom::image(i),
+            Some(i) => {
+                // Dom::image(i)
+                // (0..3).map(|_i| Dom::image(i)).collect::<Dom<Self>>()
+                // Dom::div().with_class("container").with_child(
+                //     (0..3)
+                //         .map(|i| {
+                //             Dom::div()
+                //                 .with_class("img")
+                //                 .with_child(Dom::label(i.to_string()).with_class("lab"))
+                //                 .with_child(Dom::div())
+                //         })
+                //         .collect::<Dom<Self>>(),
+                // )
+                let mut container = Dom::div().with_class("container");
+                for _ in (0..5) {
+                    container.add_child(Dom::div().with_class("img"));
+                }
+                container
+                // .with_child(Dom::div().with_class("img"))
+            }
             None => {
                 println!("None");
                 Dom::div()
@@ -58,8 +78,10 @@ fn main() {
         data.image_id = Some(image_id);
     }
     // app.app_state.resources.add_image(image_source);
-    let window = app
-        .create_window(WindowCreateOptions::default(), css::native())
-        .unwrap();
+    let window = {
+        let css = css::override_native(include_str!("../example.css")).unwrap();
+        app.create_window(WindowCreateOptions::default(), css.clone())
+            .unwrap()
+    };
     app.run(window).unwrap();
 }

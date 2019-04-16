@@ -1,0 +1,16 @@
+.container {
+  border: 3px solid red;
+  flex-direction: row;
+/*   flex-wrap: wrap; */
+}
+/*  */
+.img {
+  width: 400px;
+  height: 300px;
+  border: 1px solid #8d8d8d;
+  background-color: green;
+}
+/*  */
+/* .lab { */
+/*   background-color: green; */
+/* } */
