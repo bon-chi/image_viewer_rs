@@ -1,7 +1,7 @@
 use image_viewer_rs::geo_tag::GeoTag;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{fs, path::PathBuf, time::Duration};
 
+use azul::dialogs::{open_directory_dialog, open_file_dialog, open_multiple_files_dialog};
 use azul::prelude::*;
 
 struct MyDataModel {
@@ -25,7 +25,11 @@ impl Layout for MyDataModel {
                 // )
                 let mut container = Dom::div().with_class("container");
                 for _ in (0..5) {
-                    container.add_child(Dom::div().with_class("img"));
+                    container.add_child(
+                        Dom::image(i)
+                            .with_class("img")
+                            .with_callback(On::LeftMouseUp, Callback(my_andler)),
+                    );
                 }
                 container
                 // .with_child(Dom::div().with_class("img"))
@@ -36,6 +40,18 @@ impl Layout for MyDataModel {
             }
         }
     }
+}
+
+fn my_andler(
+    app_state: &mut AppState<MyDataModel>,
+    _event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    // open_directory_dialog(None)
+    open_multiple_files_dialog(None, None)
+        // .and_then(|path| fs::read_to_string(path.clone()).ok())
+        .and_then(|path| Some(1))
+        .and_then(|content| Some(Redraw))
+        .unwrap_or(DontRedraw)
 }
 
 fn main() {
