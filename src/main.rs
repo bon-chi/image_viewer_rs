@@ -1,52 +1,95 @@
 use image_viewer_rs::geo_tag::GeoTag;
 use std::{fs, path::PathBuf, time::Duration};
 
-use azul::dialogs::{open_directory_dialog, open_file_dialog, open_multiple_files_dialog};
-use azul::prelude::*;
+use azul::{
+    dialogs::{open_directory_dialog, open_file_dialog, open_multiple_files_dialog},
+    prelude::*,
+    widgets::button::Button,
+};
 
 struct MyDataModel {
     image_id: Option<ImageId>,
 }
 impl Layout for MyDataModel {
     fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
-        match self.image_id {
-            Some(i) => {
-                // Dom::image(i)
-                // (0..3).map(|_i| Dom::image(i)).collect::<Dom<Self>>()
-                // Dom::div().with_class("container").with_child(
-                //     (0..3)
-                //         .map(|i| {
-                //             Dom::div()
-                //                 .with_class("img")
-                //                 .with_child(Dom::label(i.to_string()).with_class("lab"))
-                //                 .with_child(Dom::div())
-                //         })
-                //         .collect::<Dom<Self>>(),
-                // )
-                let mut container = Dom::div().with_class("container");
-                for _ in (0..5) {
-                    container.add_child(
-                        Dom::image(i)
-                            .with_class("img")
-                            .with_callback(On::LeftMouseUp, Callback(my_andler)),
-                    );
-                }
-                container
-                // .with_child(Dom::div().with_class("img"))
-            }
-            None => {
-                println!("None");
+        Dom::div()
+            .with_class("all")
+            .with_child(
                 Dom::div()
-            }
-        }
+                    .with_class("menu")
+                    .with_child(
+                        Button::with_label("open from directory")
+                            .dom()
+                            .with_callback(On::LeftMouseUp, Callback(select_from_folder)),
+                    )
+                    .with_child(
+                        Button::with_label("open from files")
+                            .dom()
+                            .with_callback(On::LeftMouseUp, Callback(select_from_files)),
+                    ),
+            )
+            .with_child(Dom::div().with_class("images"))
     }
+    // fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
+    //     match self.image_id {
+    //         Some(i) => {
+    //             // Dom::image(i)
+    //             // (0..3).map(|_i| Dom::image(i)).collect::<Dom<Self>>()
+    //             // Dom::div().with_class("container").with_child(
+    //             //     (0..3)
+    //             //         .map(|i| {
+    //             //             Dom::div()
+    //             //                 .with_class("img")
+    //             //                 .with_child(Dom::label(i.to_string()).with_class("lab"))
+    //             //                 .with_child(Dom::div())
+    //             //         })
+    //             //         .collect::<Dom<Self>>(),
+    //             // )
+    //             let mut container = Dom::div().with_class("container");
+    //             for _ in (0..5) {
+    //                 container.add_child(
+    //                     Dom::image(i)
+    //                         .with_class("img")
+    //                         .with_callback(On::LeftMouseUp, Callback(my_andler)),
+    //                 );
+    //             }
+    //             container
+    //             // .with_child(Dom::div().with_class("img"))
+    //         }
+    //         None => {
+    //             println!("None");
+    //             Dom::div()
+    //         }
+    //     }
+    // }
+}
+fn select_from_folder(
+    app_state: &mut AppState<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    open_directory_dialog(None)
+        // .and_then(|path| fs::read_to_string(path.clone()).ok())
+        .and_then(|path| Some(1))
+        .and_then(|content| Some(Redraw))
+        .unwrap_or(DontRedraw)
+}
+fn select_from_files(
+    app_state: &mut AppState<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    open_multiple_files_dialog(None, None)
+        // .and_then(|path| fs::read_to_string(path.clone()).ok())
+        .and_then(|path| Some(1))
+        .and_then(|content| Some(Redraw))
+        .unwrap_or(DontRedraw)
 }
 
 fn my_andler(
     app_state: &mut AppState<MyDataModel>,
-    _event: &mut CallbackInfo<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
 ) -> UpdateScreen {
     // open_directory_dialog(None)
+    println!("--------------{:?}", app_state.windows[event.window_id]);
     open_multiple_files_dialog(None, None)
         // .and_then(|path| fs::read_to_string(path.clone()).ok())
         .and_then(|path| Some(1))
