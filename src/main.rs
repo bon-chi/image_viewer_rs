@@ -9,9 +9,20 @@ use azul::{
 
 struct MyDataModel {
     image_id: Option<ImageId>,
+    image_ids: Option<Vec<ImageId>>,
 }
 impl Layout for MyDataModel {
     fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
+        let mut images = Dom::div().with_class("images");
+        match &self.image_ids {
+            Some(ids) => {
+                for _ in (0..5) {
+                    images.add_child(Dom::image(*ids.first().unwrap()).with_class("img"));
+                }
+            }
+            None => {}
+        }
+
         Dom::div()
             .with_class("all")
             .with_child(
@@ -20,15 +31,17 @@ impl Layout for MyDataModel {
                     .with_child(
                         Button::with_label("open from directory")
                             .dom()
+                            .with_class("select-from-folder")
                             .with_callback(On::LeftMouseUp, Callback(select_from_folder)),
                     )
                     .with_child(
                         Button::with_label("open from files")
                             .dom()
+                            .with_class("select-from-files")
                             .with_callback(On::LeftMouseUp, Callback(select_from_files)),
                     ),
             )
-            .with_child(Dom::div().with_class("images"))
+            .with_child(images)
     }
     // fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
     //     match self.image_id {
@@ -73,13 +86,26 @@ fn select_from_folder(
         .and_then(|content| Some(Redraw))
         .unwrap_or(DontRedraw)
 }
+
 fn select_from_files(
     app_state: &mut AppState<MyDataModel>,
     event: &mut CallbackInfo<MyDataModel>,
 ) -> UpdateScreen {
     open_multiple_files_dialog(None, None)
         // .and_then(|path| fs::read_to_string(path.clone()).ok())
-        .and_then(|path| Some(1))
+        .and_then(|paths| {
+            println!("{:?}", paths);
+            let image_id = app_state.add_css_image_id("example01");
+            app_state.add_image(
+                image_id,
+                ImageSource::Embedded(include_bytes!("../example.jpg")),
+            );
+            {
+                let mut data = app_state.data.lock().unwrap(); //data is myDataModel
+                data.image_ids = Some(vec![image_id]);
+            }
+            Some(1)
+        })
         .and_then(|content| Some(Redraw))
         .unwrap_or(DontRedraw)
 }
@@ -126,21 +152,37 @@ fn main() {
     let path = PathBuf::from("example.jpg");
     let image_source = ImageSource::File(path);
     // let image_id = ImageId
-    let mut app = App::new(MyDataModel { image_id: None }, AppConfig::default()).unwrap();
+    let mut app = App::new(
+        MyDataModel {
+            image_id: None,
+            image_ids: None,
+        },
+        AppConfig::default(),
+    )
+    .unwrap();
     let image_id = app.add_css_image_id("example01");
     app.add_image(
         image_id,
         ImageSource::Embedded(include_bytes!("../example.jpg")),
     );
     {
-        let mut data = app.app_state.data.lock().unwrap();
+        let mut data = app.app_state.data.lock().unwrap(); //data is myDataModel
         data.image_id = Some(image_id);
     }
     // app.app_state.resources.add_image(image_source);
+    println!("{:?}", env!("CARGO_MANIFEST_DIR"));
+    macro_rules! CSS_PATH {
+        () => {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/example.css")
+        };
+    }
     let window = {
-        let css = css::override_native(include_str!("../example.css")).unwrap();
-        app.create_window(WindowCreateOptions::default(), css.clone())
+        let hot_reloader = css::hot_reload(CSS_PATH!(), Duration::from_millis(500));
+        app.create_hot_reload_window(WindowCreateOptions::default(), hot_reloader)
             .unwrap()
+        // let css = css::override_native(include_str!("../example.css")).unwrap();
+        // app.create_window(WindowCreateOptions::default(), css.clone())
+        //     .unwrap()
     };
     app.run(window).unwrap();
 }
