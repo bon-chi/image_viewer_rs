@@ -13,17 +13,21 @@ use azul::{
     prelude::*,
     widgets::button::Button,
     widgets::label::Label,
+    widgets::text_input::*,
 };
 
 struct MyDataModel {
     image_id: Option<ImageId>,
     image_ids: Option<Vec<ImageId>>,
     images: BTreeMap<String, MyImage>,
+    gps_input: TextInputState,
 }
 
 struct MyImage {
     id: ImageId,
     path: PathBuf,
+    longitude: f64,
+    latitude: f64,
     choosen: bool,
 }
 
@@ -34,7 +38,7 @@ impl MyImage {
 }
 
 impl Layout for MyDataModel {
-    fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
+    fn layout(&self, info: LayoutInfo<Self>) -> Dom<Self> {
         let mut images = Dom::div().with_class("images");
         // match &self.image_ids {
         //     Some(ids) => {
@@ -65,7 +69,12 @@ impl Layout for MyDataModel {
                                     .with_class("check"),
                             ),
                     )
-                    .with_child(Dom::image(i.id).with_class("img")),
+                    .with_child(Dom::image(i.id).with_class("img"))
+                    .with_child(
+                        Label::new(format!("long: {}, lat: {}", i.longitude, i.latitude))
+                            .dom()
+                            .with_class("gps"),
+                    ),
             );
         }
 
@@ -85,6 +94,28 @@ impl Layout for MyDataModel {
                             .dom()
                             .with_class("select-from-files")
                             .with_callback(On::LeftMouseUp, Callback(select_from_files)),
+                    )
+                    .with_child(
+                        Dom::div()
+                            .with_class("gps-container")
+                            .with_child(
+                                TextInput::new()
+                                    .bind(info.window, &self.gps_input, &self)
+                                    .dom(&self.gps_input)
+                                    .with_class("gps-input"),
+                            )
+                            .with_child(
+                                Button::with_label("paste")
+                                    .dom()
+                                    .with_class("paste-button")
+                                    .with_callback(On::LeftMouseUp, Callback(paste_gps)),
+                            )
+                            .with_child(
+                                Button::with_label("set")
+                                    .dom()
+                                    .with_class("gps-button")
+                                    .with_callback(On::LeftMouseUp, Callback(set_gps)),
+                            ),
                     ),
             )
             .with_child(images)
@@ -151,12 +182,17 @@ fn select_from_files(
                     image_id,
                     ImageSource::File(path.clone()), // TODO: use thumbnail
                 );
+                let meta = rexiv2::Metadata::new_from_path(&path).unwrap();
+                let longitude = meta.get_gps_info().unwrap().longitude;
+                let latitude = meta.get_gps_info().unwrap().latitude;
                 images.insert(
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                     MyImage {
                         id: image_id,
                         path: path,
                         choosen: false,
+                        longitude: longitude,
+                        latitude: latitude,
                     },
                 );
             }
@@ -213,6 +249,17 @@ fn my_andler(
         .unwrap_or(DontRedraw)
 }
 
+fn parse_gps(s: &str) -> rexiv2::GpsInfo {
+    let ss = s.split(',').collect::<Vec<&str>>();
+    let latitude: f64 = ss[0].parse().unwrap();
+    let longtitude: f64 = ss[1].parse().unwrap();
+    rexiv2::GpsInfo {
+        longitude: longtitude,
+        latitude: latitude,
+        altitude: 0.0,
+    }
+}
+
 fn main() {
     let g = GeoTag;
     let mut meta = rexiv2::Metadata::new_from_path("example.jpg").unwrap();
@@ -247,6 +294,7 @@ fn main() {
             image_id: None,
             image_ids: None,
             images: BTreeMap::new(),
+            gps_input: TextInputState::new(""),
         },
         AppConfig::default(),
     )
@@ -268,7 +316,7 @@ fn main() {
         };
     }
     let window = {
-        let hot_reloader = css::hot_reload(CSS_PATH!(), Duration::from_millis(500));
+        let hot_reloader = css::hot_reload(CSS_PATH!(), Duration::from_millis(3000));
         app.create_hot_reload_window(WindowCreateOptions::default(), hot_reloader)
             .unwrap()
         // let css = css::override_native(include_str!("../example.css")).unwrap();
@@ -304,5 +352,33 @@ fn toggle_image(
             image.toggle();
         }
     }
+    Redraw
+}
+
+fn set_gps(
+    app_state: &mut AppState<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    let mut data = app_state.data.lock().unwrap(); //data is myDataModel
+    let gps_info = parse_gps(&data.gps_input.text);
+    for (_, image) in &mut data.images {
+        if image.choosen {
+            // image.path
+            let mut meta = rexiv2::Metadata::new_from_path(&image.path).unwrap();
+            println!("{:?}", meta.set_gps_info(&gps_info));
+            meta.save_to_file(&image.path);
+        }
+    }
+    Redraw
+}
+
+fn paste_gps(
+    app_state: &mut AppState<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    let gps_string = app_state.get_clipboard_string().unwrap();
+    println!("{}", gps_string);
+    let mut data = app_state.data.lock().unwrap(); //data is myDataModel
+    data.gps_input.text = gps_string;
     Redraw
 }
