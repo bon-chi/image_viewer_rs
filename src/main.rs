@@ -1,23 +1,57 @@
 use image_viewer_rs::geo_tag::GeoTag;
-use std::{fs, path::PathBuf, time::Duration};
+use std::{
+    ffi::OsStr,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use azul::{
     dialogs::{open_directory_dialog, open_file_dialog, open_multiple_files_dialog},
     prelude::*,
     widgets::button::Button,
+    widgets::label::Label,
 };
 
 struct MyDataModel {
     image_id: Option<ImageId>,
     image_ids: Option<Vec<ImageId>>,
+    images: Option<Vec<(MyImage, bool)>>,
 }
+
+struct MyImage {
+    id: ImageId,
+    path: PathBuf,
+}
+
 impl Layout for MyDataModel {
     fn layout(&self, _: LayoutInfo<Self>) -> Dom<Self> {
         let mut images = Dom::div().with_class("images");
-        match &self.image_ids {
-            Some(ids) => {
-                for _ in (0..5) {
-                    images.add_child(Dom::image(*ids.first().unwrap()).with_class("img"));
+        // match &self.image_ids {
+        //     Some(ids) => {
+        //         for _ in (0..5) {
+        //             images.add_child(Dom::image(*ids.first().unwrap()).with_class("img"));
+        //         }
+        //     }
+        //     None => {}
+        // }
+        match &self.images {
+            Some(is) => {
+                for i in is {
+                    images.add_child(
+                        Dom::div()
+                            .with_class("image-container")
+                            .with_child(
+                                Dom::div().with_class("image-header").with_child(
+                                    Label::new(
+                                        i.0.path.file_name().unwrap().to_str().unwrap().to_string(),
+                                    )
+                                    .dom(),
+                                ),
+                            )
+                            .with_child(Dom::image(i.0.id).with_class("img")),
+                    );
                 }
             }
             None => {}
@@ -94,7 +128,33 @@ fn select_from_files(
     open_multiple_files_dialog(None, None)
         // .and_then(|path| fs::read_to_string(path.clone()).ok())
         .and_then(|paths| {
-            println!("{:?}", paths);
+            let paths = paths.iter().map(|p| PathBuf::from(p)).collect::<Vec<_>>();
+            // let path = Path::new(paths.first().unwrap());
+            // println!("{:?}", paths);
+            let images: Vec<(MyImage, bool)> = paths
+                .into_iter()
+                .map(|path| {
+                    let image_id =
+                        app_state.add_css_image_id(path.file_name().unwrap().to_str().unwrap());
+                    // let mut buffer = Vec::new();
+                    // let mut f = File::open("../example.jpg").unwrap();
+                    // f.read_to_end(&mut buffer);
+                    app_state.add_image(
+                        image_id,
+                        // ImageSource::Embedded(include_bytes!("../example.jpg")), // TODO: use thumbnail
+                        ImageSource::File(path.clone()), // TODO: use thumbnail
+                                                         // ImageSource::Embedded(&buffer),
+                                                         // TODO: use thumbnail
+                    );
+                    (
+                        MyImage {
+                            id: image_id,
+                            path: path,
+                        },
+                        false,
+                    )
+                })
+                .collect();
             let image_id = app_state.add_css_image_id("example01");
             app_state.add_image(
                 image_id,
@@ -103,6 +163,7 @@ fn select_from_files(
             {
                 let mut data = app_state.data.lock().unwrap(); //data is myDataModel
                 data.image_ids = Some(vec![image_id]);
+                data.images = Some(images);
             }
             Some(1)
         })
@@ -156,6 +217,7 @@ fn main() {
         MyDataModel {
             image_id: None,
             image_ids: None,
+            images: None,
         },
         AppConfig::default(),
     )
@@ -186,3 +248,9 @@ fn main() {
     };
     app.run(window).unwrap();
 }
+
+// fn select_image(
+//     app_state: &mut AppState<MyDataModel>,
+//     event: &mut CallbackInfo<MyDataModel>,
+// ) -> UpdateScreen {
+// }
