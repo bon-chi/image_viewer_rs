@@ -1,5 +1,6 @@
 use image_viewer_rs::geo_tag::GeoTag;
 use std::{
+    collections::BTreeMap,
     ffi::OsStr,
     fs::File,
     io::Read,
@@ -17,12 +18,19 @@ use azul::{
 struct MyDataModel {
     image_id: Option<ImageId>,
     image_ids: Option<Vec<ImageId>>,
-    images: Option<Vec<(MyImage, bool)>>,
+    images: BTreeMap<String, MyImage>,
 }
 
 struct MyImage {
     id: ImageId,
     path: PathBuf,
+    choosen: bool,
+}
+
+impl MyImage {
+    fn toggle(&mut self) {
+        self.choosen = !self.choosen;
+    }
 }
 
 impl Layout for MyDataModel {
@@ -36,25 +44,29 @@ impl Layout for MyDataModel {
         //     }
         //     None => {}
         // }
-        match &self.images {
-            Some(is) => {
-                for i in is {
-                    images.add_child(
+        for (_, i) in &self.images {
+            images.add_child(
+                Dom::div()
+                    .with_class("image-container")
+                    .with_callback(On::LeftMouseUp, Callback(toggle_image))
+                    .with_child(
                         Dom::div()
-                            .with_class("image-container")
+                            .with_class("image-header")
                             .with_child(
-                                Dom::div().with_class("image-header").with_child(
-                                    Label::new(
-                                        i.0.path.file_name().unwrap().to_str().unwrap().to_string(),
-                                    )
-                                    .dom(),
-                                ),
+                                Label::new(
+                                    i.path.file_name().unwrap().to_str().unwrap().to_string(),
+                                )
+                                .dom()
+                                .with_class("title"),
                             )
-                            .with_child(Dom::image(i.0.id).with_class("img")),
-                    );
-                }
-            }
-            None => {}
+                            .with_child(
+                                Label::new(if i.choosen { "check" } else { "blank" })
+                                    .dom()
+                                    .with_class("check"),
+                            ),
+                    )
+                    .with_child(Dom::image(i.id).with_class("img")),
+            );
         }
 
         Dom::div()
@@ -131,30 +143,47 @@ fn select_from_files(
             let paths = paths.iter().map(|p| PathBuf::from(p)).collect::<Vec<_>>();
             // let path = Path::new(paths.first().unwrap());
             // println!("{:?}", paths);
-            let images: Vec<(MyImage, bool)> = paths
-                .into_iter()
-                .map(|path| {
-                    let image_id =
-                        app_state.add_css_image_id(path.file_name().unwrap().to_str().unwrap());
-                    // let mut buffer = Vec::new();
-                    // let mut f = File::open("../example.jpg").unwrap();
-                    // f.read_to_end(&mut buffer);
-                    app_state.add_image(
-                        image_id,
-                        // ImageSource::Embedded(include_bytes!("../example.jpg")), // TODO: use thumbnail
-                        ImageSource::File(path.clone()), // TODO: use thumbnail
-                                                         // ImageSource::Embedded(&buffer),
-                                                         // TODO: use thumbnail
-                    );
-                    (
-                        MyImage {
-                            id: image_id,
-                            path: path,
-                        },
-                        false,
-                    )
-                })
-                .collect();
+            let mut images: BTreeMap<String, MyImage> = BTreeMap::new();
+            for path in paths {
+                let image_id =
+                    app_state.add_css_image_id(path.file_name().unwrap().to_str().unwrap());
+                app_state.add_image(
+                    image_id,
+                    ImageSource::File(path.clone()), // TODO: use thumbnail
+                );
+                images.insert(
+                    path.file_name().unwrap().to_str().unwrap().to_string(),
+                    MyImage {
+                        id: image_id,
+                        path: path,
+                        choosen: false,
+                    },
+                );
+            }
+            // let images: Vec<(MyImage, bool)> = paths
+            //     .into_iter()
+            //     .map(|path| {
+            //         let image_id =
+            //             app_state.add_css_image_id(path.file_name().unwrap().to_str().unwrap());
+            //         // let mut buffer = Vec::new();
+            //         // let mut f = File::open("../example.jpg").unwrap();
+            //         // f.read_to_end(&mut buffer);
+            //         app_state.add_image(
+            //             image_id,
+            //             // ImageSource::Embedded(include_bytes!("../example.jpg")), // TODO: use thumbnail
+            //             ImageSource::File(path.clone()), // TODO: use thumbnail
+            //                                              // ImageSource::Embedded(&buffer),
+            //                                              // TODO: use thumbnail
+            //         );
+            //         (
+            //             MyImage {
+            //                 id: image_id,
+            //                 path: path,
+            //             },
+            //             false,
+            //         )
+            //     })
+            //     .collect();
             let image_id = app_state.add_css_image_id("example01");
             app_state.add_image(
                 image_id,
@@ -163,7 +192,7 @@ fn select_from_files(
             {
                 let mut data = app_state.data.lock().unwrap(); //data is myDataModel
                 data.image_ids = Some(vec![image_id]);
-                data.images = Some(images);
+                data.images = images;
             }
             Some(1)
         })
@@ -217,7 +246,7 @@ fn main() {
         MyDataModel {
             image_id: None,
             image_ids: None,
-            images: None,
+            images: BTreeMap::new(),
         },
         AppConfig::default(),
     )
@@ -249,8 +278,31 @@ fn main() {
     app.run(window).unwrap();
 }
 
-// fn select_image(
-//     app_state: &mut AppState<MyDataModel>,
-//     event: &mut CallbackInfo<MyDataModel>,
-// ) -> UpdateScreen {
-// }
+fn toggle_image(
+    app_state: &mut AppState<MyDataModel>,
+    event: &mut CallbackInfo<MyDataModel>,
+) -> UpdateScreen {
+    let node_id = event.hit_dom_node;
+    let child_id = event.get_node(node_id).unwrap().first_child.unwrap();
+    let grand_child_id = event.get_node(child_id).unwrap().first_child.unwrap();
+    let grand_child = event.get_node_content(grand_child_id).unwrap();
+    let label = match &grand_child.node_type {
+        azul::dom::NodeType::Label(dom_string) => match dom_string {
+            azul::dom::DomString::Heap(string) => string,
+            _ => panic!("never reach"),
+        },
+        _ => panic!("never reach"),
+    };
+    // let child = node_id.children(event.get_node_hierarchy());
+    // let child2 = child.node.unwrap().children(child.node_layout);
+    println!("{:?}", grand_child.node_type);
+    {
+        let mut data = app_state.data.lock().unwrap(); //data is myDataModel
+        println!("{:?}", label);
+        println!("{:?}", &data.images.get(label).is_some());
+        if let Some(ref mut image) = data.images.get_mut(label) {
+            image.toggle();
+        }
+    }
+    Redraw
+}
